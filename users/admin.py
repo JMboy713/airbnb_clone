@@ -9,7 +9,7 @@ class CustomUserAdmin(UserAdmin):
     fieldsets=(
         (
             "Profile",
-            {"fields":("username","password","name","email",'is_host'),
+            {"fields":("username","password","name","email",'is_host','avatar','gender','currency','language',),
                     "classes":("wider"),
                     },
                     
