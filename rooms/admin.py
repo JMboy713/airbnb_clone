@@ -8,7 +8,9 @@ class RoomAdmin(admin.ModelAdmin):
         "name",
         "price",
         "kind",
+        "total_amenities",
         "owner",
+        "created_at",
     )
     list_filter = (
         "country",
@@ -19,6 +21,9 @@ class RoomAdmin(admin.ModelAdmin):
         "pet_friendly",
         "amenities",
     )
+
+    def total_amenities(self, room):
+        return room.amenities.count()
 
 
 @admin.register(Amenity)

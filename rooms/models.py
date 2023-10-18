@@ -31,9 +31,13 @@ class Room(CommonModel):
     amenities = models.ManyToManyField("rooms.Amenity")  # 모델이 가지고 싶은 거
     category = models.ForeignKey("categories.Category", on_delete=models.SET_NULL,null=True,blank=True,)
 
+
     def __str__(self) -> str:
         return self.name
 
+    def total_amenities(self):
+        print(self)
+        return "hello"
 
 # 장소가 제공해주는 옵션들. -> many to many relationship
 class Amenity(CommonModel):
