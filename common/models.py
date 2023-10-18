@@ -9,3 +9,4 @@ class CommonModel(models.Model):
 	# db에 저장하지 않기 위한 코드
 	class Meta: # model 을 configure 할 때 사용. 
 		abstract=True #db 에 추가하지 않는 코드
+
