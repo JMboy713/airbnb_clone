@@ -27,17 +27,36 @@ class Room(CommonModel):
     owner = models.ForeignKey(
         "users.User",
         on_delete=models.CASCADE,
+        related_name="rooms",  # room_set 말고 rooms 로 가지게 된다.
     )
-    amenities = models.ManyToManyField("rooms.Amenity")  # 모델이 가지고 싶은 거
-    category = models.ForeignKey("categories.Category", on_delete=models.SET_NULL,null=True,blank=True,)
-
+    amenities = models.ManyToManyField(
+        "rooms.Amenity", related_name="rooms",
+    )  # 모델이 가지고 싶은 거
+    category = models.ForeignKey(
+        "categories.Category",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="rooms",
+    )
 
     def __str__(self) -> str:
         return self.name
 
     def total_amenities(self):
-        print(self)
-        return "hello"
+        return self.amenities.count()
+    
+    def rating(self):
+        count = self.reviews.count()
+        if count==0:
+            return "NO reviews"
+        else:
+            total_rating=0
+            for review in self.reviews.all().values("rating"):
+                total_rating+=review['rating']
+            return round(total_rating/count,2)
+
+
 
 # 장소가 제공해주는 옵션들. -> many to many relationship
 class Amenity(CommonModel):

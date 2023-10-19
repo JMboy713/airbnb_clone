@@ -11,12 +11,14 @@ class Review(CommonModel):
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
+        related_name="reviews",
     )
     experience = models.ForeignKey(
         "experiences.Experience",
         null=True,
         blank=True,
         on_delete=models.CASCADE,
+        related_name="reviews",
     )
     payload = models.TextField()  # 리뷰 내용.
     rating = models.PositiveIntegerField()

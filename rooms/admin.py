@@ -7,6 +7,7 @@ class RoomAdmin(admin.ModelAdmin):
     list_display = (
         "name",
         "price",
+        "rating",
         "kind",
         "total_amenities",
         "owner",
@@ -20,6 +21,10 @@ class RoomAdmin(admin.ModelAdmin):
         "toilets",
         "pet_friendly",
         "amenities",
+    )
+    search_fields = (
+        "^name", # startswith 를 뜻함.  
+        "price",
     )
 
     def total_amenities(self, room):

@@ -26,7 +26,7 @@ class Booking(CommonModel):
 	experience = models.ForeignKey(
 		"experiences.Experience",
 		on_delete=models.SET_NULL,
-		null=True,
+		null=True, 
 		blank=True,
 	)
 	# room을 위한 체크인, 체크아웃
