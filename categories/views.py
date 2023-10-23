@@ -3,7 +3,7 @@ from rest_framework.decorators import api_view
 from rest_framework.exceptions import NotFound
 from rest_framework.response import Response
 from .serializers import CategorySerializer
-
+from rest_framework.status import HTTP_204_NO_CONTENT
 
 """
 Get/Response
@@ -30,7 +30,7 @@ def categories(request):
             return Response(serializer.errors)
 
 
-@api_view(["GET", "PUT"])
+@api_view(["GET", "PUT","DELETE"])
 def category(request, pk):
 	try:
 		category = Category.objects.get(pk=pk)
@@ -52,6 +52,9 @@ def category(request, pk):
 			# serializer.save() # put 에서 save 를 호출하면 Serializer의 update를 호출한다. 
 		else:
 			return Response(serializer.errors)
+	elif request.method=="DELETE":
+		category.delete()
+		return Response(status=HTTP_204_NO_CONTENT)
 
 
-# Post 요청
+
