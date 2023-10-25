@@ -1,9 +1,15 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from .models import Amenity,Room
-from .serializers import AmenitySerializer,RoomListSerializer,RoomDetailSerializer
-from rest_framework.exceptions import NotFound
-from rest_framework.status import HTTP_204_NO_CONTENT
+from django.db import transaction
+from .models import Amenity, Room
+from .serializers import (
+    AmenitySerializer,
+    RoomListSerializer,
+    RoomDetailSerializer,
+)
+from rest_framework.exceptions import NotFound, NotAuthenticated, ParseError,PermissionDenied
+from rest_framework.status import HTTP_204_NO_CONTENT,HTTP_200_OK
+from categories.models import Category
 
 """
 /api/v1/rooms/amenities/
@@ -44,37 +50,99 @@ class AmenityDetail(APIView):
 
     def put(self, request, pk):
         amenity = self.get_object(pk)
-        serializer = AmenitySerializer(
-            amenity,
-            data=request.data,
-            partial=True
-        )
+        serializer = AmenitySerializer(amenity, data=request.data, partial=True)
         if serializer.is_valid():
-            updated_amenity=serializer.save()
-            return Response(serializer.errors)
+            updated_amenity = serializer.save()
+            return Response(AmenitySerializer(updated_amenity).data)
         else:
-            return Response
+            return Response(serializer.errors)
 
     def delete(self, request, pk):
         amenity = self.get_object(pk)
         amenity.delete()
         return Response(status=HTTP_204_NO_CONTENT)
 
+
 class Rooms(APIView):
-    def get(self,reqeust):
-        all_rooms=Room.objects.all()
-        serializer=RoomListSerializer(all_rooms,many=True)
+    def get(self, request):
+        all_rooms = Room.objects.all()
+        serializer = RoomListSerializer(all_rooms, many=True,context={"request":request})
         return Response(serializer.data)
-    
+
+    def post(self, request):
+        # print(request.user) authenticated 된 유저라면 정보를 받아올 수 있다.
+        if request.user.is_authenticated:
+            serializer = RoomDetailSerializer(data=request.data)
+            if serializer.is_valid():
+                category_pk = request.data.get("category")
+                if not category_pk:
+                    raise ParseError("Category is required.")  # 잘못된 데이터 형식을 가지고 있을 때.
+                try:
+                    category = Category.objects.get(pk=category_pk)
+                    if category == Category.CategoryKindChoices.EXPERIENCES:
+                        raise ParseError("the category should be rooms")
+                except Category.DoesNotExist:
+                    raise ParseError("category not found")
+                
+                try:
+                    with transaction.atomic(): # db에 바로 반영하지 않고, 변경 사항들을 리스트로 만들어서 다 저장되면 DB 로 Push
+
+                        room = serializer.save(
+                            owner=request.user,
+                            category=category,
+                        )  # create 메서드에 **validated_data 에 추가된다.
+                        amenities = request.data.get("amenities")
+                        for amenity_pk in amenities:
+                            amenity = Amenity.objects.get(pk=amenity_pk)
+                            room.amenities.add(amenity)
+                        serializer = RoomDetailSerializer(room)
+                        return Response(serializer.data)
+                except Exception:
+                    raise ParseError("Amenity not found")
+            else:
+                return Response(serializer.errors)
+        else:
+            raise NotAuthenticated
+
 
 class RoomDetail(APIView):
-    def get_object(self,pk):
+    def get_object(self, pk):
         try:
             return Room.objects.get(pk=pk)
         except Room.DoesNotExist:
             raise NotFound
 
-    def get(self,requset,pk):
-        room=self.get_object(pk)
-        serializer=RoomDetailSerializer(room)
+    def get(self, request, pk):
+        room = self.get_object(pk)
+        serializer = RoomDetailSerializer(room,context={"request":request})
         return Response(serializer.data)
+    
+    def put(self,request,pk):
+        room=self.get_object(pk)
+        if not request.user.is_authenticated:
+            raise NotAuthenticated
+        elif room.owner!=request.user:
+            raise PermissionDenied
+        else:
+            serializer=RoomDetailSerializer(room,data=request.data,partial=True)
+            if serializer.is_valid():
+                updated_room = serializer.save()
+                return Response(RoomDetailSerializer(updated_room).data)
+            else:
+                return Response(serializer.errors)
+            
+
+
+
+
+
+    def delete(self,request,pk):
+        room=self.get_object(pk)
+        if not request.user.is_authenticated:
+            raise NotAuthenticated
+        elif room.owner!=request.user:
+            raise PermissionDenied
+        else:
+            room.delete()
+            return Response(status=HTTP_204_NO_CONTENT)
+            

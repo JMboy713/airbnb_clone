@@ -1,0 +1,12 @@
+{"name": "House created with DRF",
+"country": "south Korea",
+"city": "seoul",
+"price": 1200,
+"rooms": 1,
+"toilets": 2,
+"category":1,
+"description": "house",
+"address": "123",
+"pet_friendly": false,
+"amenities":[1,2,3,4],
+"kind": "entire_place"}

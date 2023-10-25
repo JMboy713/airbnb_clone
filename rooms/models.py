@@ -1,7 +1,10 @@
 from typing import Any
 from django.db import models
 from common.models import CommonModel  # 상속 받기 위해 커먼 모델을 생성해서 가져온다.
-
+"""
+A-FK(B)
+B.A_set 라는 역접근자가 생긴다. 
+"""
 
 # Create your models here.
 class Room(CommonModel):
