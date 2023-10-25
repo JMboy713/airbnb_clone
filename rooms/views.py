@@ -1,15 +1,18 @@
+from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db import transaction
 from .models import Amenity, Room
-from .serializers import (
-    AmenitySerializer,
-    RoomListSerializer,
-    RoomDetailSerializer,
+from .serializers import AmenitySerializer, RoomListSerializer, RoomDetailSerializer
+from rest_framework.exceptions import (
+    NotFound,
+    NotAuthenticated,
+    ParseError,
+    PermissionDenied,
 )
-from rest_framework.exceptions import NotFound, NotAuthenticated, ParseError,PermissionDenied
-from rest_framework.status import HTTP_204_NO_CONTENT,HTTP_200_OK
+from rest_framework.status import HTTP_204_NO_CONTENT, HTTP_200_OK
 from categories.models import Category
+from reviews.serializers import ReviewSerializer
 
 """
 /api/v1/rooms/amenities/
@@ -66,7 +69,9 @@ class AmenityDetail(APIView):
 class Rooms(APIView):
     def get(self, request):
         all_rooms = Room.objects.all()
-        serializer = RoomListSerializer(all_rooms, many=True,context={"request":request})
+        serializer = RoomListSerializer(
+            all_rooms, many=True, context={"request": request}
+        )
         return Response(serializer.data)
 
     def post(self, request):
@@ -83,10 +88,9 @@ class Rooms(APIView):
                         raise ParseError("the category should be rooms")
                 except Category.DoesNotExist:
                     raise ParseError("category not found")
-                
-                try:
-                    with transaction.atomic(): # db에 바로 반영하지 않고, 변경 사항들을 리스트로 만들어서 다 저장되면 DB 로 Push
 
+                try:
+                    with transaction.atomic():  # db에 바로 반영하지 않고, 변경 사항들을 리스트로 만들어서 다 저장되면 DB 로 Push
                         room = serializer.save(
                             owner=request.user,
                             category=category,
@@ -114,35 +118,83 @@ class RoomDetail(APIView):
 
     def get(self, request, pk):
         room = self.get_object(pk)
-        serializer = RoomDetailSerializer(room,context={"request":request})
+        serializer = RoomDetailSerializer(room, context={"request": request})
         return Response(serializer.data)
-    
-    def put(self,request,pk):
-        room=self.get_object(pk)
+
+    def put(self, request, pk):
+        room = self.get_object(pk)
         if not request.user.is_authenticated:
             raise NotAuthenticated
-        elif room.owner!=request.user:
+        elif room.owner != request.user:
             raise PermissionDenied
         else:
-            serializer=RoomDetailSerializer(room,data=request.data,partial=True)
+            serializer = RoomDetailSerializer(room, data=request.data, partial=True)
             if serializer.is_valid():
                 updated_room = serializer.save()
                 return Response(RoomDetailSerializer(updated_room).data)
             else:
                 return Response(serializer.errors)
-            
 
-
-
-
-
-    def delete(self,request,pk):
-        room=self.get_object(pk)
+    def delete(self, request, pk):
+        room = self.get_object(pk)
         if not request.user.is_authenticated:
             raise NotAuthenticated
-        elif room.owner!=request.user:
+        elif room.owner != request.user:
             raise PermissionDenied
         else:
             room.delete()
             return Response(status=HTTP_204_NO_CONTENT)
-            
+
+
+class RoomReviews(APIView):
+    def get_object(self, pk):
+        try:
+            return Room.objects.get(pk=pk)
+        except Room.DoesNotExist:
+            raise NotFound
+
+    def get(self, request, pk):
+        try:
+            # print(request.query_params) # 쿼리의 파라미터를 읽어온다.
+            page = request.query_params.get("page", 1)  # 없으면 기본값 1.
+            page = int(page)  # str 로 가져온다. 또한 정수만 받는다.
+        except ValueError:
+            page = 1
+        page_size=3
+        start=(page-1)*page_size
+        end=start+page_size
+
+        room = self.get_object(pk)
+        serializer = ReviewSerializer(
+            room.reviews.all()[start:end], # 쿼리 셋이기 때문에 먼저 가져오게 한다. 
+            many=True,
+        )
+        return Response(serializer.data)
+class RoomAmenities(APIView):
+    def get_object(self, pk):
+        try:
+            return Room.objects.get(pk=pk)
+        except Room.DoesNotExist:
+            raise NotFound
+    def get(self,request,pk):
+        try:
+            # print(request.query_params) # 쿼리의 파라미터를 읽어온다.
+            page = request.query_params.get("page", 1)  # 없으면 기본값 1.
+            page = int(page)  # str 로 가져온다. 또한 정수만 받는다.
+        except ValueError:
+            page = 1
+        page_size=settings.PAGE_SIZE
+        start=(page-1)*page_size
+        end=start+page_size
+
+        room = self.get_object(pk)
+        serializer = AmenitySerializer(
+            room.amenities.all()[start:end], # 쿼리 셋이기 때문에 먼저 가져오게 한다. 
+            many=True,
+        )
+        return Response(serializer.data)
+    
+class RoomPhotos(APIView):
+    
+    def post(self,request,pk):
+        pass
