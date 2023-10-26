@@ -15,7 +15,7 @@ class User(AbstractUser):
 
     first_name = models.CharField(max_length=150,editable=False) # django 에 있는 필드를 사용하지 않음 - editable false
     last_name = models.CharField(max_length=150, editable=False)
-    avatar=models.ImageField(blank=True) # pillow 를 설치해야 사용할 수 있다. , blank=true -> 빈칸도 비어둘 수 있게 해주는것. 
+    avatar=models.URLField(blank=True) # pillow 를 설치해야 사용할 수 있다. , blank=true -> 빈칸도 비어둘 수 있게 해주는것. 
     name=models.CharField(max_length=150,default="")
     is_host=models.BooleanField(default=False)
     gender=models.CharField(max_length=10,choices=GenderChoices.choices)

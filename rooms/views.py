@@ -1,7 +1,8 @@
 from django.conf import settings
+from django.db import transaction
+from django.utils import timezone  # django 의 time 존을 써야 시간대를 장고의 시간과 맞출 수 있다.
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.db import transaction
 from .models import Amenity, Room
 from .serializers import AmenitySerializer, RoomListSerializer, RoomDetailSerializer
 from rest_framework.exceptions import (
@@ -14,7 +15,12 @@ from rest_framework.status import HTTP_204_NO_CONTENT, HTTP_200_OK
 from categories.models import Category
 from reviews.serializers import ReviewSerializer
 from medias.serializers import PhotoSerializer
-from rest_framework.permissions import IsAuthenticatedOrReadOnly # GET은 통과, post 는 인증받는사람만 간으하게 해준다. 
+from rest_framework.permissions import (
+    IsAuthenticatedOrReadOnly,
+)  # GET은 통과, post 는 인증받는사람만 간으하게 해준다.
+from bookings.models import Booking
+from bookings.serializers import PublicBookingSerializer,CretaeRoomBookingSerializEr
+
 
 """
 /api/v1/rooms/amenities/
@@ -69,7 +75,8 @@ class AmenityDetail(APIView):
 
 
 class Rooms(APIView):
-    permission_classes=[IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
     def get(self, request):
         all_rooms = Room.objects.all()
         serializer = RoomListSerializer(
@@ -79,41 +86,40 @@ class Rooms(APIView):
 
     def post(self, request):
         # print(request.user) authenticated 된 유저라면 정보를 받아올 수 있다.
-        
-            serializer = RoomDetailSerializer(data=request.data)
-            if serializer.is_valid():
-                category_pk = request.data.get("category")
-                if not category_pk:
-                    raise ParseError("Category is required.")  # 잘못된 데이터 형식을 가지고 있을 때.
-                try:
-                    category = Category.objects.get(pk=category_pk)
-                    if category == Category.CategoryKindChoices.EXPERIENCES:
-                        raise ParseError("the category should be rooms")
-                except Category.DoesNotExist:
-                    raise ParseError("category not found")
 
-                try:
-                    with transaction.atomic():  # db에 바로 반영하지 않고, 변경 사항들을 리스트로 만들어서 다 저장되면 DB 로 Push
-                        room = serializer.save(
-                            owner=request.user,
-                            category=category,
-                        )  # create 메서드에 **validated_data 에 추가된다.
-                        amenities = request.data.get("amenities")
-                        for amenity_pk in amenities:
-                            amenity = Amenity.objects.get(pk=amenity_pk)
-                            room.amenities.add(amenity)
-                        serializer = RoomDetailSerializer(room)
-                        return Response(serializer.data)
-                except Exception:
-                    raise ParseError("Amenity not found")
-            else:
-                return Response(serializer.errors)
-        
-        
+        serializer = RoomDetailSerializer(data=request.data)
+        if serializer.is_valid():
+            category_pk = request.data.get("category")
+            if not category_pk:
+                raise ParseError("Category is required.")  # 잘못된 데이터 형식을 가지고 있을 때.
+            try:
+                category = Category.objects.get(pk=category_pk)
+                if category == Category.CategoryKindChoices.EXPERIENCES:
+                    raise ParseError("the category should be rooms")
+            except Category.DoesNotExist:
+                raise ParseError("category not found")
+
+            try:
+                with transaction.atomic():  # db에 바로 반영하지 않고, 변경 사항들을 리스트로 만들어서 다 저장되면 DB 로 Push
+                    room = serializer.save(
+                        owner=request.user,
+                        category=category,
+                    )  # create 메서드에 **validated_data 에 추가된다.
+                    amenities = request.data.get("amenities")
+                    for amenity_pk in amenities:
+                        amenity = Amenity.objects.get(pk=amenity_pk)
+                        room.amenities.add(amenity)
+                    serializer = RoomDetailSerializer(room)
+                    return Response(serializer.data)
+            except Exception:
+                raise ParseError("Amenity not found")
+        else:
+            return Response(serializer.errors)
 
 
 class RoomDetail(APIView):
-    permission_classes=[IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
     def get_object(self, pk):
         try:
             return Room.objects.get(pk=pk)
@@ -127,8 +133,7 @@ class RoomDetail(APIView):
 
     def put(self, request, pk):
         room = self.get_object(pk)
-        
-        
+
         if room.owner != request.user:
             raise PermissionDenied
         else:
@@ -141,8 +146,7 @@ class RoomDetail(APIView):
 
     def delete(self, request, pk):
         room = self.get_object(pk)
-        
-        
+
         if room.owner != request.user:
             raise PermissionDenied
         else:
@@ -203,7 +207,8 @@ class RoomAmenities(APIView):
 
 
 class RoomPhotos(APIView):
-    permission_classes=[IsAuthenticatedOrReadOnly]
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
     def get_object(self, pk):
         try:
             return Room.objects.get(pk=pk)
@@ -211,7 +216,6 @@ class RoomPhotos(APIView):
             raise NotFound
 
     def post(self, request, pk):
-        
         room = self.get_object(pk)
         if request.user != room.owner:
             raise PermissionDenied
@@ -220,5 +224,27 @@ class RoomPhotos(APIView):
             photo = serializer.save(room=room)
             serializer = PhotoSerializer(photo)
             return Response(serializer.data)
+        else:
+            return Response(serializer.errors)
+
+
+class RoomBookings(APIView):
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    def get(self, request, pk):
+        now = timezone.localtime(timezone.now()).date()
+        bookings = Booking.objects.filter(
+            room__pk=pk,
+            kind=Booking.BookingKindChoices.ROOM,
+            checkin__gt=now,
+        )  # DB를 조회하지 않고 booking
+        serializer = PublicBookingSerializer(bookings, many=True)
+        return Response(serializer.data)
+    def post(self,request,pk):
+        room=self.get_object(pk)
+        serializer=CretaeRoomBookingSerializEr(data=request.data) # 체크인, 체크아웃 을 필수로 바구는 시리얼라이저. 
+        
+        if serializer.is_valid():
+            Response ({"ok":True})
         else:
             return Response(serializer.errors)
