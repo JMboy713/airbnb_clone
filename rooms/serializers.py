@@ -5,6 +5,8 @@ from categories.serializers import CategorySerializer
 from rest_framework.serializers import SerializerMethodField
 from rest_framework import serializers
 from reviews.serializers import ReviewSerializer
+from wishlists.models import Wishlist
+
 
 class RoomListSerializer(ModelSerializer):
     rating = serializers.SerializerMethodField()
@@ -50,7 +52,7 @@ class RoomDetailSerializer(ModelSerializer):
     category = CategorySerializer(read_only=True)
     rating = serializers.SerializerMethodField()
     is_owner = serializers.SerializerMethodField()
-    
+    is_liked = serializers.SerializerMethodField()
 
     class Meta:
         model = Room
@@ -66,3 +68,9 @@ class RoomDetailSerializer(ModelSerializer):
         return (
             room.owner == request.user
         )  # request 한 사람과 소유자가 같은지 확인. 소유자 여부에 따라 수정 버튼을 보이게, 안보이게 할 수 있따.
+
+    def get_is_liked(self, room):
+        request = self.context["request"]
+        return Wishlist.objects.filter(
+            user=request.user, rooms__pk=room.pk
+        ).exists()  # 유저가 여러개의 위시리스트를 가지고 있을 수 있으니 filter 사용.
